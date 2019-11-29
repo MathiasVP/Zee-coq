@@ -19,8 +19,8 @@ Section TypeSystem.
                                list (string * Lab) *
                                list (string * SecTy) * Lab * Lab * Cmd) }.
   Context {eval_binop: BinOpS -> V -> V -> V}.
-  Context {type_binop: BinOpS -> SecTy -> SecTy -> option SecTy}.
-  Notation "'〚' o '〛' '(' e1 ',' e2 ')'" := (type_binop o e1 e2).
+  Context {type_binop: BinOpS -> SecTy -> SecTy -> SecTy -> Prop}.
+  Notation "o ':' s1 ',' s2 '⤇' s" := (type_binop o s1 s2 s) (at level 70, s at next level).
 
   Context {VarT ArgT LocT MemT : Type}
           {H_var_finmaplike: FinMapLike VarT string (A + SecTyV)}
@@ -56,20 +56,20 @@ Section TypeSystem.
   Hint Constructors Kind.
   Definition KEnv := string -> option (Kind * Lab).
 
-  Reserved Notation "pfr '⊨' ϕ" (at level 70, ϕ at next level).
-  Inductive holds: PFrame -> Formula -> Prop :=
-    holds_nil pfr: holds pfr nil
-  | holds_cons pfr ϕ k1 k2:
-      (forall ℓ₁ ℓ₂, ⟨k1, pfr⟩ₖ ⇓ₖ ℓ₁ -> ⟨k2, pfr⟩ₖ ⇓ₖ ℓ₂ -> ℓ₁ ⊑ ℓ₂) ->
-      pfr ⊨ ϕ ->
-      pfr ⊨ ((k1, k2) :: ϕ)
-  where "pfr '⊨' ϕ" := (holds pfr ϕ).
+  Notation "'〚' x '〛' f" := (eval f x) (at level 30, f at next level).
+  
+  Reserved Notation "'⊨' ϕ" (at level 70, ϕ at next level).
+  Inductive holds: Formula -> Prop :=
+    holds_nil: holds nil
+  | holds_cons ϕ k1 k2:
+      k1 ⊑ k2 ->
+      ⊨ ϕ ->
+      ⊨ ((k1, k2) :: ϕ)
+  where "'⊨' ϕ" := (holds ϕ).
   Hint Constructors holds.
   
   Definition flowsto_with (ϕ: Formula) (k1 k2 : Lab): Prop :=
-    forall pfr ℓ₁ ℓ₂, pfr ⊨ ϕ ->
-                 ⟨k1, pfr⟩ₖ ⇓ₖ ℓ₁ ->
-                 ⟨k2, pfr⟩ₖ ⇓ₖ ℓ₂ -> ℓ₁ ⊑ ℓ₂.
+    ⊨ ϕ -> k1 ⊑ k2.
   Notation "ϕ '⊢' k1 '⊑' k2" := (flowsto_with ϕ k1 k2) (at level 70, k1, k2 at next level).
   Notation "ϕ '⊢' k1 '===' k2" := (flowsto_with ϕ k1 k2 /\ flowsto_with ϕ k2 k1) (at level 70, k1, k2 at next level).
   
@@ -305,6 +305,10 @@ Section TypeSystem.
   exact subst_secty_secty.
   Defined.
 
+  Instance Substeable_SecTy_Ty : Substeable SecTy string Ty := {}.
+  exact subst_secty_ty.
+  Defined.
+
   Instance Substeable_SecTy_Expr : Substeable SecTy string Expr := {}.
   exact (fun s x e =>
            let fix subst e :=
@@ -523,7 +527,7 @@ Section TypeSystem.
   | wt_binop Γ Π ϕ o e1 e2 s1 s2 s:
       [Γ, Π, ϕ] ⊢ e1 : s1 ->
       [Γ, Π, ϕ] ⊢ e2 : s2 ->
-      〚o〛(s1, s2) = Some s ->
+      o : s1, s2 ⤇ s ->
       [Γ, Π, ϕ] ⊢ BinOp o e1 e2 : s
   | wt_unroll Γ Π ϕ α k1 k2 s e:
       [Γ, Π, ϕ] ⊢ e : STy (μ (α ::: k1) s) k2 ->
@@ -650,6 +654,270 @@ Section TypeSystem.
       ϕ ⊢ fr ⊑ f_fr[[ ks ./ (map fst f_ks1) ]] ->
       [Γ, Π, ϕ, pc, fr] ⊢ CCall f ks ss es
   where "'[' Γ ',' Π ',' ϕ ',' pc ',' fr ']' '⊢' c" := (wt Γ Π ϕ pc fr c).
+
+  Lemma subst_secty_cmd_skip:
+    forall x s,
+      CSkip[[s ./ x]] = CSkip.
+  Proof.
+    intros.
+    cbn.
+    unfold subst_secty_cmd.
+    cbn.    
+    destruct s; reflexivity.
+  Qed.
+
+  Lemma subst_secty_cmd_write:
+    forall e1 e2 x s,
+      (e1 *= e2)[[s ./ x]] = (e1[[s ./ x]] *= e2[[s ./ x]]).
+  Proof.
+    intros.
+    cbn.
+    unfold subst_secty_cmd.
+    cbn.    
+    destruct s; reflexivity.
+  Qed.
+
+  Lemma subst_secty_expr_addrof:
+    forall x y s,
+      (&(x)) [[s ./ y]] = &(x).
+  Proof.
+    intros.
+    reflexivity.
+  Qed.
+
+  Lemma subst_secty_expr_num:
+    forall (n : nat) y s,
+      (Num n) [[s ./ y]] = Num n.
+  Proof.
+    intros.
+    reflexivity.
+  Qed.
+
+  Instance Substeable_SecTy_AtomSecTy : Substeable SecTy string AtomSecTy := {}.
+  exact (fun s x a =>
+           let fix subst a :=
+               match a with
+               | STy t k => STy t[[s ./ x]] k
+               | VarTy y k => VarTy y k
+               end
+           in subst a).
+  Defined.
+    
+  
+  Lemma subst_secty_atom_STy:
+    forall (t : Ty) (k : Lab) (s : SecTy) (x : string),
+      (STy t k)[[ s ./ x ]] = STy t[[s ./ x]] k.
+  Proof.
+    intros.
+    reflexivity.
+  Qed.
+
+  Lemma raise_sty:
+    forall t k1 k2,
+      (STy t k1) ^^ k2 = STy t (k1 ⊔ k2).
+  Proof.
+    intros.
+    reflexivity.
+  Qed.
+
+  Lemma raise_asecty:
+    forall a k,
+      ASecTy a ^^ k = ASecTy (a ^^ k).
+  Proof.
+    intros.
+    reflexivity.
+  Qed.
+
+  Global Instance MorphismR_flowsto_with :
+    forall ϕ,
+      MorphismR (flowsto_with ϕ).
+  Proof.
+    intros.
+    constructor.
+    intros.
+    unfold flowsto_with in *.
+    split.
+    - intros.
+      rewrite <- H, <- H1.
+      firstorder.
+    - intros.
+      rewrite -> H, H1.
+      firstorder.
+  Defined.
+  
+  Global Instance Reflexive_flowsto_with (ϕ: Formula): Reflexive (flowsto_with ϕ) := {}.
+  Proof.
+    intros.
+    unfold flowsto_with.
+    intros.
+    reflexivity.
+  Qed.
+
+  Global Instance MorphismUR_wt_ty :
+    forall Π ϕ t,
+      MorphismUR (wt_ty Π ϕ t).
+  Proof.
+    intros.
+    constructor.
+    intros.
+    split; intros.
+    - induction H1.
+      + eapply wt_ty_sub.
+        * constructor.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * constructor; eassumption.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * constructor; eassumption.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eapply wt_exty; eassumption.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eapply wt_exlab; eassumption.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eapply wt_rec; eassumption.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eapply wt_size; eassumption.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eassumption.
+        * rewrite -> H.
+          assumption.
+    - induction H1.
+      + eapply wt_ty_sub.
+        * constructor.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * constructor; eassumption.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * constructor; eassumption.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eapply wt_exty; eassumption.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eapply wt_exlab; eassumption.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eapply wt_rec; eassumption.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eapply wt_size; eassumption.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_ty_sub.
+        * eassumption.
+        * rewrite <- H.
+          assumption.
+  Qed.
+  
+  Global Instance MorphismUR_wt_atom_sectype :
+    forall Π ϕ a,
+      MorphismUR (wt_atom_sectype Π ϕ a).
+  Proof.
+    intros.
+    constructor.
+    intros.
+    split; intros.
+    - induction H1.
+      + eapply wt_atom_sub.
+        * constructor; eassumption.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_atom_sub.
+        * constructor; eassumption.
+        * rewrite <- H.
+          reflexivity.
+      + eapply wt_atom_sub.
+        * eassumption.
+        * rewrite -> H.
+          assumption.
+    - induction H1.
+      + eapply wt_atom_sub.
+        * constructor; eassumption.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_atom_sub.
+        * constructor; eassumption.
+        * rewrite -> H.
+          reflexivity.
+      + eapply wt_atom_sub.
+        * eassumption.
+        * rewrite <- H.
+          assumption.
+  Qed.
+      
+  Global Instance MorphismUR_wt_sectype :
+    forall Π ϕ s,
+      MorphismUR (wt_sectype Π ϕ s).
+  Proof.
+    intros.
+    constructor.
+    intros.
+    split.
+    - intros.
+      revert x H.
+      induction H1; intros.
+      + constructor.
+        rewrite -> H1.
+        assumption.
+      + eapply wt_secty_sub.
+        * constructor.
+          -- eassumption.
+          -- eapply IHwt_sectype.
+             reflexivity.
+        * rewrite <- H2.
+          reflexivity.
+      + eapply wt_secty_sub.
+        * eapply wt_secty_nil.
+        * unfold flowsto_with.
+          intros.
+          eapply bot_is_bot.
+      + eapply wt_secty_sub.
+        * eassumption.
+        * rewrite -> H2.
+          assumption.
+    - intros.
+      revert y H.
+      induction H1; intros.
+      + constructor.
+        rewrite <- H1.
+        assumption.
+      + eapply wt_secty_sub.
+        * constructor.
+          -- eassumption.
+          -- eapply IHwt_sectype.
+             reflexivity.
+        * rewrite -> H2.
+          reflexivity.
+      + eapply wt_secty_sub.
+        * eapply wt_secty_nil.
+        * unfold flowsto_with.
+          intros.
+          eapply bot_is_bot.
+      + eapply wt_secty_sub.
+        * eassumption.
+        * rewrite <- H2.
+          assumption.
+  Qed.  
   
 End TypeSystem.
 

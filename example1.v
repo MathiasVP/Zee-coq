@@ -21,7 +21,7 @@ Section Example1.
                                list (string * Lab) *
                                list (string * SecTy) * Lab * Lab * Cmd) }.
   Context {eval_binop: BinOpS -> V -> V -> V}.
-  Context {type_binop: BinOpS -> SecTy -> SecTy -> option SecTy}.
+  Context {type_binop: BinOpS -> SecTy -> SecTy -> SecTy -> Prop}.
   Context {VarT ArgT LocT MemT : Type}
           {H_var_finmaplike: FinMapLike VarT string (A + SecTyV)}
           {H_arg_finmaplike: FinMapLike ArgT string SecTyV}
@@ -32,13 +32,14 @@ Section Example1.
   Definition EFrame := @EFrame A MemT _.
   
   Notation "'〚' o '〛'" := (eval_binop o).
-  Notation "'〚' o '〛' '(' e1 ',' e2 ')'" := (type_binop o e1 e2).
+  Notation "o ':' s1 ',' s2 '⤇' s" := (type_binop o s1 s2 s) (at level 70, s at next level).
  
   Definition Var := @Var A BinOpS.
   Definition Num := @Num A BinOpS.
   Coercion Var: string >-> lang.Expr.
   Coercion Num: nat >-> lang.Expr.
   Coercion STy: lang.Ty >-> Funclass.
+  Coercion eval_binop : BinOpS >-> Funclass.
     
   Definition factorial : Cmd :=
     LET "fac_var0" AS (IntTy ⊥) ::= 1
@@ -64,11 +65,11 @@ Section Example1.
     Notation "cfg1 '-->[' n ']' cfg2" := (step_many cfg1 cfg2 n) (at level 80).
     Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
 
-    Definition wt := @wt A BinOpS _ F type_binop VarT ArgT LocT _ _ _.
+    Definition wt := @wt A BinOpS _ F type_binop.
     Notation "'[' Γ ',' Π ',' ϕ ',' pc ',' fr ']' '⊢' c" := (wt Γ Π ϕ pc fr c) (at level 70, c at next level).
 
     Lemma fac_is_wt:
-      (forall k1 k2 o, 〚 o 〛 (IntTy k1, IntTy k2) = Some (ASecTy (IntTy (k1 ⊔ k2)))) ->
+      (forall k1 k2 o, o : (IntTy k1), (IntTy k2) ⤇ (ASecTy (IntTy (k1 ⊔ k2)))) ->
       [∅["fac_arg0" ↦ ASecTy (IntTy ⊥)]
         ["fac_arg1" ↦ ASecTy (STy (ε @ (ASecTy (IntTy ⊥))) ⊥)],
        ∅, nil, ⊥, ⊥] ⊢ factorial.
@@ -80,20 +81,10 @@ Section Example1.
       - constructor; repeat constructor.
       - constructor.
         constructor.
-        unfold flowsto_with.
-        intros.
-        inversion H2; subst; clear H2.
-        inversion H8; subst; clear H8.
-        inversion H9; subst; clear H9.
-        rewrite -> join_bot.
-        eapply bot_is_bot.
-      - unfold flowsto_with.
-        intros.
-        inversion H2; subst; clear H2.
-        inversion H8; subst; clear H8.
-        inversion H9; subst; clear H9.
-        rewrite -> join_bot.
-        eapply bot_is_bot.
+        rewrite -> idem_join.
+        reflexivity.
+      - rewrite -> idem_join.
+        reflexivity.
       - eapply WtSeq.
         + eapply WtLet.
           * constructor.
@@ -101,20 +92,10 @@ Section Example1.
           * constructor; repeat constructor.
           * constructor.
             constructor.
-            unfold flowsto_with.
-            intros.
-            inversion H2; subst; clear H2.
-            inversion H8; subst; clear H8.
-            inversion H9; subst; clear H9.
-            rewrite -> join_bot.
-            eapply bot_is_bot.
-          * unfold flowsto_with.
-            intros.
-            inversion H2; subst; clear H2.
-            inversion H8; subst; clear H8.
-            inversion H9; subst; clear H9.
-            rewrite -> join_bot.
-            eapply bot_is_bot.
+            rewrite -> idem_join.
+            reflexivity.
+          * rewrite -> idem_join.
+            reflexivity.
           * eapply WtWhile.
             -- constructor.
                reflexivity.
@@ -136,15 +117,8 @@ Section Example1.
                      }
                   ** constructor.
                      constructor.
-                     unfold flowsto_with.
-                     intros.
-                     inversion H2; subst; clear H2.
-                     inversion H8; subst; clear H8.
-                     inversion H7; subst; clear H7.
-                     inversion H10; subst; clear H10.
-                     inversion H9; subst; clear H9.
-                     repeat rewrite -> join_bot.
-                     eapply bot_is_bot.
+                     do 2 rewrite -> idem_join.
+                     reflexivity.
                ++ eapply WtWrite.
                   ** constructor.
                      reflexivity.
@@ -161,15 +135,8 @@ Section Example1.
                      }
                   ** constructor.
                      constructor.
-                     unfold flowsto_with.
-                     intros.
-                     inversion H2; subst; clear H2.
-                     inversion H8; subst; clear H8.
-                     inversion H7; subst; clear H7.
-                     inversion H10; subst; clear H10.
-                     inversion H9; subst; clear H9.
-                     repeat rewrite -> join_bot.
-                     eapply bot_is_bot.
+                     do 2 rewrite -> idem_join.
+                     reflexivity.
         + eapply WtWrite.
           * constructor.
             reflexivity.
@@ -177,13 +144,8 @@ Section Example1.
             reflexivity.
           * constructor.
             constructor.
-            unfold flowsto_with.
-            intros.
-            inversion H2; subst; clear H2.
-            inversion H8; subst; clear H8.
-            inversion H9; subst; clear H9.
-            rewrite -> join_bot.
-            eapply bot_is_bot.
+            rewrite -> idem_join.
+            reflexivity.
     Qed.
     
     Lemma program_is_wt:
@@ -197,20 +159,10 @@ Section Example1.
       - constructor. constructor; constructor.
       - constructor.
         constructor.
-        unfold flowsto_with.
-        intros.
-        inversion H2; subst; clear H2.
-        inversion H8; subst; clear H8.
-        inversion H9; subst; clear H9.
-        rewrite -> join_bot.
-        eapply bot_is_bot.
-      - unfold flowsto_with.
-        intros.
-        inversion H2; subst; clear H2.
-        inversion H8; subst; clear H8.
-        inversion H9; subst; clear H9.
-        rewrite -> join_bot.
-        eapply bot_is_bot.
+        rewrite -> idem_join.
+        reflexivity.
+      - rewrite -> idem_join.
+        reflexivity.
       - eapply WtSeq.
         + eapply WtCall.
           * eassumption.
@@ -244,41 +196,21 @@ Section Example1.
             firstorder.
           * split.
             -- cbn.
-               unfold flowsto_with.
-               intros.
-               inversion H2; subst; clear H2.
-               eapply bot_is_bot.
+               reflexivity.
             -- cbn.
-               unfold flowsto_with.
-               intros.
-               inversion H2; subst; clear H2.
-               eapply bot_is_bot.
+               reflexivity.
           * cbn.
-            unfold flowsto_with.
-            intros.
-            inversion H2; subst; clear H2.
-            eapply bot_is_bot.
+            reflexivity.
         + eapply WtLet.
           * constructor.
             reflexivity.
           * constructor; repeat constructor.
           * constructor.
             constructor.
-            cbn.
-            unfold flowsto_with.
-            intros.
-            inversion H2; subst; clear H2.
-            inversion H8; subst; clear H8.
-            inversion H9; subst; clear H9.
-            rewrite -> join_bot.
-            eapply bot_is_bot.
-          * unfold flowsto_with.
-            intros.
-            inversion H2; subst; clear H2.
-            inversion H8; subst; clear H8.
-            inversion H9; subst; clear H9.
-            rewrite -> join_bot.
-            eapply bot_is_bot.
+            rewrite -> idem_join.
+            reflexivity.
+          * rewrite -> idem_join.
+            reflexivity.
           * eapply WtSkip.
     Qed.
 

@@ -26,8 +26,8 @@ Section Sem.
   Definition Frame := @Frame A VarT ArgT LocT MemT _ _ _ _.
   Definition PFrame := @PFrame A VarT ArgT LocT _ _ _.
   Definition EFrame := @EFrame A MemT _.
-  
-  Notation "'〚' o '〛'" := (eval_binop o).
+
+  Coercion eval_binop : BinOpS >-> Funclass.
   
   Definition Stk := list Frame.
   Hint Unfold Stk.
@@ -104,6 +104,7 @@ Section Sem.
   
   Inductive EvalLab: kcfg -> A -> Prop :=
   | ElabVar κ ℓ pfr:
+      pfr ? κ = Some (inl ℓ) ->
       ⟨LabVar κ, pfr⟩ₖ ⇓ₖ ℓ
   | ElabLit ℓ pfr:
       ⟨Lit ℓ, pfr⟩ₖ ⇓ₖ ℓ
@@ -212,10 +213,10 @@ Section Sem.
       δ x = Some n ->
       fr ? addr_of n fr = Some v ->
       ⟨Var x, fr⟩ₑ ⇓ₑ v
-  | EBinOp e1 e2 v1 v2 o fr:
+  | EBinOp e1 e2 v1 v2 (o : BinOpS) fr:
       ⟨e1, fr⟩ₑ ⇓ₑ v1 ->
       ⟨e2, fr⟩ₑ ⇓ₑ v2 ->
-      ⟨BinOp o e1 e2, fr⟩ₑ ⇓ₑ (〚o〛 v1 v2)
+      ⟨BinOp o e1 e2, fr⟩ₑ ⇓ₑ (o v1 v2)
   | ESizeOf s fr τ n:
       ⟨s, pframe_of fr⟩ₛ ⇓ₛ τ ->
       sizeOf τ = Some n ->
@@ -656,6 +657,30 @@ Section Sem.
   Hint Constructors step_many.
   
   Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
+
+  Lemma evalLab_det:
+    forall (k : Lab) pfr ℓ₁ ℓ₂,
+      ⟨ k, pfr ⟩ₖ ⇓ₖ ℓ₁ ->
+      ⟨ k, pfr ⟩ₖ ⇓ₖ ℓ₂ -> ℓ₁ = ℓ₂.
+  Proof.
+    intros.
+    revert ℓ₁ ℓ₂ H H1.
+    induction k; intros.
+    - inversion H; subst; clear H.
+      inversion H1; subst; clear H1.
+      congruence.
+    - inversion H; subst; clear H.
+      inversion H1; subst; clear H1.
+      reflexivity.
+    - inversion H; subst; clear H.
+      inversion H1; subst; clear H1.
+      f_equal; eauto.
+    - inversion H; subst; clear H.
+      inversion H1; subst; clear H1.
+      f_equal; eauto.
+  Qed.
+  Hint Resolve evalLab_det : label_eval.
+  
 End Sem.
 
 Notation "'⟨' e ',' fr '⟩ₑ'" := (make_ecfg e fr).
