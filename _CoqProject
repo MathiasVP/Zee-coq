@@ -7,3 +7,4 @@
 ./frame.v
 ./sem.v
 ./typesystem.v
+./example1.v

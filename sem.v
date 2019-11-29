@@ -683,7 +683,7 @@ Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
             end).
 
   Ltac simpl_mapsto :=
-    repeat (repeat autounfold with *; cbn;
+    repeat (cbn;
             match goal with
               [ |- context[_ [_ ↦ ?v ] ? _] ] =>
               rewrite -> lookup_update_eq
@@ -691,23 +691,16 @@ Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
               rewrite -> lookup_update_neq by solve[lia]
             end).
 
-  Ltac solve_in_range := 
-    (repeat autounfold with *; cbn; lia).
+  Ltac solve_in_range := (cbn; lia).
   
   Ltac eval_var :=
     (repeat autounfold with *; cbn; eapply EVar;
      [eassumption | solve_mapsto]).
 
-  Ltac eval_addrof :=
-    repeat autounfold with *; cbn; eapply EAddrOf; [eassumption].
+  Ltac eval_addrof := cbn; eapply EAddrOf; [eassumption].
 
   Ltac eval_expr :=
-    repeat (repeat autounfold with *; cbn; match goal with
-                     [ |- ⟨BinOp _ _ _, _⟩ₑ ⇓ₑ _ ] => eapply EBinOp
-                   | [ |- ⟨Var _, _⟩ₑ ⇓ₑ _] => eval_var
-                   | [ |- ⟨AddrOf _, _⟩ₑ ⇓ₑ _] => eval_addrof
-                   | [ |- ⟨Num ?n, _⟩ₑ ⇓ₑ _] => constructor
-                   end).
+    repeat (cbn; (eval_var || eval_addrof || constructor)).
 
   Ltac step_write :=
     match goal with

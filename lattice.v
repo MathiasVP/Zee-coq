@@ -399,6 +399,15 @@ Section LatticeProperties.
   Qed.
   Hint Resolve top_is_top.
 
+  Lemma bot_is_bot:
+    forall a, ⊥ ⊑ a.
+  Proof.
+    intros.
+    unfold flowsto in *.
+    eauto.
+  Qed.
+  Hint Resolve bot_is_bot.
+  
   Lemma flowsto_top_is_top:
     forall a, ⊤ ⊑ a -> a === ⊤.
   Proof.

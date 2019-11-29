@@ -22,7 +22,11 @@ Section TypeSystem.
   Context {type_binop: BinOpS -> SecTy -> SecTy -> option SecTy}.
   Notation "'〚' o '〛' '(' e1 ',' e2 ')'" := (type_binop o e1 e2).
 
-  Context {VarT ArgT LocT MemT : Type} {H_var_finmaplike: FinMapLike VarT string (A + SecTyV)} {H_arg_finmaplike: FinMapLike ArgT string SecTyV} {H_loc_finmaplike: FinMapLike LocT string SecTyV} {H_mem_maplike: MapLike MemT nat V}.
+  Context {VarT ArgT LocT MemT : Type}
+          {H_var_finmaplike: FinMapLike VarT string (A + SecTyV)}
+          {H_arg_finmaplike: FinMapLike ArgT string SecTyV}
+          {H_loc_finmaplike: FinMapLike LocT string SecTyV}
+          {H_mem_maplike: MapLike MemT nat V}.
   Definition Frame := @Frame A VarT ArgT LocT MemT _ _ _ _.
   Definition PFrame := @PFrame A VarT ArgT LocT _ _ _.
   Definition EFrame := @EFrame A MemT _.
@@ -112,7 +116,7 @@ Section TypeSystem.
       [Π, ϕ] ⊢ₖ k : k2              
   where "'[' Π ',' ϕ ']' '⊢ₖ' k1 ':' k2" := (wt_lab Π ϕ k1 k2).
 
-  Instance is_dec_eq_string : is_dec_eq string := {}.
+  Global Instance is_dec_eq_string : is_dec_eq string := {}.
   exact string_dec.
   Defined.
   
@@ -566,23 +570,23 @@ Section TypeSystem.
       ϕ ⊢ k ⊑ fr ->                             
       [Γ[x ↦ s], Π, ϕ, pc, fr] ⊢ c ->
       [Γ, Π, ϕ, pc, fr] ⊢ LET x AS s ::= e IN c ENDLET
-  | TAt Γ Π ϕ pc fr k e c:
+  | WtAt Γ Π ϕ pc fr k e c:
       [Π, ϕ] ⊢ₖ k : pc ->
       ϕ ⊢ k ⊑ pc ->
       [Γ, Π, ϕ] ⊢ e : STy IntTy pc ->
       [Γ, Π, ϕ, k, fr] ⊢ c ->
       [Γ, Π, ϕ, pc, fr] ⊢ AT k WITH BOUND e DO c TA
-  | TIf Γ Π ϕ pc fr e c1 c2:
+  | WtIf Γ Π ϕ pc fr e c1 c2:
       [Γ, Π, ϕ] ⊢ e : STy IntTy pc ->
       [Γ, Π, ϕ, pc, fr] ⊢ c1 ->
       [Γ, Π, ϕ, pc, fr] ⊢ c2 ->
       [Γ, Π, ϕ, pc, fr] ⊢ IF e THEN c1 ELSE c2 FI
-  | TFP Γ Π ϕ pc fr k1 x s:
+  | WtFP Γ Π ϕ pc fr k1 x s:
       [Π, ϕ] ⊢ₖ fr : k1 ->
       Γ x = Some s ->
       ϕ ⊢ s ^^ pc <: Tₛₜ(pc, fr, k1) ->
       [Γ, Π, ϕ, pc, fr] ⊢ x <- FP
-  | TMatch Γ Π ϕ pc fr α ps k:
+  | WtMatch Γ Π ϕ pc fr α ps k:
       Π α = Some (KType, k) ->
       ϕ ⊢ k ⊑ pc ->
       (forall i p c Π' s,
@@ -591,43 +595,43 @@ Section TypeSystem.
           [ Γ[[ s ./ α]], Π, ϕ, pc, fr] ⊢ c[[ s ./ α ]]) ->
       [Γ, Π, ϕ, pc, fr] ⊢ CMatch α ps
   (* I don't think we need to consider k as we're TI (i.e., an out of bounds read/write will only leak the fact that we terminated).*)
-  | TRead Γ Π ϕ pc fr x e s s1 s2 k:
+  | WtRead Γ Π ϕ pc fr x e s s1 s2 k:
       [Γ, Π, ϕ] ⊢ e : STy (s1 @ s2) k ->
       Γ x = Some s ->
       ϕ ⊢ s2 ^^ pc <: s ->
       [Γ, Π, ϕ, pc, fr] ⊢ x =* e
-  | TWrite Γ Π ϕ pc fr e1 e2 s s1 s2 k:
+  | WtWrite Γ Π ϕ pc fr e1 e2 s s1 s2 k:
       [Γ, Π, ϕ] ⊢ e1 : STy (s1 @ s2) k ->
       [Γ, Π, ϕ] ⊢ e2 : s ->
       ϕ ⊢ s ^^ pc <: s2 ->
       [Γ, Π, ϕ, pc, fr] ⊢ e1 *= e2
-  | TUnpTy Γ Π ϕ pc fr α k x s e c k1 k2 r:
+  | WtUnpTy Γ Π ϕ pc fr α k x s e c k1 k2 r:
       [Γ, Π, ϕ] ⊢ e : STy (∃ₛ (α ::: k1) r) pc ->
       ϕ ⊢ r ^^ pc <: s ->
       [Π[α ↦ (KType, k1)], ϕ] ⊢ₛ r : k2 ->
       [Γ[x ↦ s], Π[α ↦ (KType, k1)], ϕ, pc, fr ⊔ k1 ⊔ k2] ⊢ c ->
       [Γ, Π, ϕ, pc, fr] ⊢ UNPACKTY α AS TYPE k, x AS s ::= e IN c ENDUNPACKTY
-  | TUnpLab Γ Π ϕ pc fr κ k x s e c k1 k2 r:
+  | WtUnpLab Γ Π ϕ pc fr κ k x s e c k1 k2 r:
       [Γ, Π, ϕ] ⊢ e : STy (∃ₖ (κ ::: k1) r) pc ->
       ϕ ⊢ r ^^ pc <: s ->
       [Π[κ ↦ (KLabel, k1)], ϕ] ⊢ₛ r : k2 ->
       [Γ[x ↦ s], Π[κ ↦ (KLabel, k1)], ϕ, pc, fr ⊔ k1 ⊔ k2] ⊢ c ->
       [Γ, Π, ϕ, pc, fr] ⊢ UNPACKLAB κ AS LABEL k, x AS s ::= e IN c ENDUNPACKLAB
-  | TIfLab Γ Π ϕ pc fr k1 k2 c1 c2:
+  | WtIfLab Γ Π ϕ pc fr k1 k2 c1 c2:
       [Π, ϕ] ⊢ₖ k1 : pc ->
       [Π, ϕ] ⊢ₖ k2 : pc ->
       [Γ, Π, ϕ, pc, fr] ⊢ c1 ->
       [Γ, Π, ϕ, pc, fr] ⊢ c2 ->
       [Γ, Π, (k1, k2) :: ϕ, pc, fr] ⊢ IF k1 FLOWS k2 THEN c1 ELSE c2 FI
-  | TWhile Γ Π ϕ pc fr c e:
+  | WtWhile Γ Π ϕ pc fr c e:
       [Γ, Π, ϕ] ⊢ e : STy IntTy pc ->
       [Γ, Π, ϕ, pc, fr] ⊢ c ->
       [Γ, Π, ϕ, pc, fr] ⊢ WHILE e DO c END
-  | TSeq Γ Π ϕ pc fr c1 c2:
+  | WtSeq Γ Π ϕ pc fr c1 c2:
       [Γ, Π, ϕ, pc, fr] ⊢ c1 ->
       [Γ, Π, ϕ, pc, fr] ⊢ c2 ->
       [Γ, Π, ϕ, pc, fr] ⊢ (c1 ;; c2)
-  | TCall Γ Π ϕ pc fr c f ks ss es f_ks1 f_ks2 f_ss f_fr f_pc:
+  | WtCall Γ Π ϕ pc fr c f ks ss es f_ks1 f_ks2 f_ss f_fr f_pc:
       F f = Some (f_ks1, f_ks2, f_ss, f_fr, f_pc, c) ->
       length f_ks1 = length ks ->
       length f_ks2 = length ss ->
@@ -644,8 +648,9 @@ Section TypeSystem.
                                       [[ ss ./ (map fst f_ks2) ]]) ->
       ϕ ⊢ pc === f_pc[[ ks ./ (map fst f_ks1) ]] ->
       ϕ ⊢ fr ⊑ f_fr[[ ks ./ (map fst f_ks1) ]] ->
-      [Γ, Π, ϕ, pc, fr] ⊢ c ->
       [Γ, Π, ϕ, pc, fr] ⊢ CCall f ks ss es
   where "'[' Γ ',' Π ',' ϕ ',' pc ',' fr ']' '⊢' c" := (wt Γ Π ϕ pc fr c).
-
+  
 End TypeSystem.
+
+Notation "'[' Γ ',' Π ',' ϕ ',' pc ',' fr ']' '⊢' c" := (wt Γ Π ϕ pc fr c) (at level 70, c at next level).

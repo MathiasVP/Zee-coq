@@ -2,16 +2,15 @@
 (* Require Export stdpp.strings.*)
 Require Import Zee.lattice.
 Require Export String.
+Global Open Scope string_scope.
 
 Section Lang.
 Context {A : Set} `{lattice A}.
 Context {BinOpS : Set}.
-
+  
 Definition Lab := @Word A string.
 Hint Unfold Lab.
 Definition LabVar := @WordVar A string.
-
-Coercion LabVar : string >-> Word.
 
 Inductive Ty :=
 | IntTy: Ty
@@ -43,9 +42,6 @@ Inductive Expr :=
 | SizeOf: SecTy -> Expr
 | AddrOf: string -> Expr.
 Hint Constructors Expr.
-
-Coercion Num : nat >-> Expr.
-Coercion Var: string >-> Expr.
 
 Inductive Pat :=
   PInt: Pat
