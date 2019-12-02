@@ -704,7 +704,7 @@ Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
               [ |- _ [_ ↦ ?v ] ? _ = Some _ ] =>
               rewrite -> lookup_update_eq; reflexivity
             | [ |- _ [_ ↦ ?v ] ? _ = Some _ ] =>
-              rewrite -> lookup_update_neq by solve[lia]
+              rewrite -> lookup_update_neq by (easy || lia)
             end).
 
   Ltac simpl_mapsto :=
@@ -713,10 +713,46 @@ Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
               [ |- context[_ [_ ↦ ?v ] ? _] ] =>
               rewrite -> lookup_update_eq
             | [ |- context[_ [_ ↦ ?v ] ? _] ] =>
-              rewrite -> lookup_update_neq by solve[lia]
+              rewrite -> lookup_update_neq by (easy || lia)
             end).
 
   Ltac solve_in_range := (cbn; lia).
+
+  Ltac eval_level := constructor; repeat constructor.
+  
+  Ltac eval_ty :=
+    match goal with
+      [ |- ⟨IntTy, _⟩ₜ ⇓ₜ _ ] =>
+      constructor
+    | [ |- ⟨PtrTy _ _, _⟩ₜ ⇓ₜ _ ] =>
+      constructor; [ eval_level | eval_secty ]
+    | [ |- ⟨SPtrTy _ _, _⟩ₜ ⇓ₜ _] =>
+      constructor; [eval_secty | eval_secty]
+    | [ |- ⟨_ @ _, _⟩ₜ ⇓ₜ _] =>
+      constructor; [eval_secty | eval_secty]
+    | [ |- ⟨RecTy _ _ _, _⟩ₜ ⇓ₜ _] =>
+      constructor
+    | [ |- ⟨ExTyTy _ _ _, _⟩ₜ ⇓ₜ _] =>
+      constructor
+    | [ |- ⟨ETyExLab _ _ _, _⟩ₜ ⇓ₜ _] =>
+      constructor
+    end with eval_atomic_secty :=
+      match goal with
+        [ |- ⟨STy _ _, _⟩ₐ ⇓ₐ _ ] =>
+        constructor; [ eval_ty | eval_level]
+      | [ |- ⟨VarTy _ _, _⟩ₐ ⇓ₐ _ ] =>
+        constructor; [ solve_mapsto | eval_level]
+      end with eval_secty :=
+        (match goal with
+           [ |- ⟨ASecTy _, _⟩ₛ ⇓ₛ _ ] =>
+           eapply ESecTySecTy; [eval_atomic_secty]
+         | [ |- ⟨ProdTy _ _, _⟩ₛ ⇓ₛ _ ] =>
+           eapply ESecTyProd; [eval_atomic_secty | eval_secty]
+         | [ |- ⟨_ · _, _⟩ₛ ⇓ₛ _ ] =>
+           eapply ESecTyProd; [eval_atomic_secty | eval_secty]
+         | [ |- ⟨NilTy, _⟩ₛ ⇓ₛ _ ] =>
+           constructor
+         end).
   
   Ltac eval_var :=
     (repeat autounfold with *; cbn; eapply EVar;
@@ -734,7 +770,7 @@ Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
     end; eapply SWrite; [reflexivity | eval_expr | eval_expr | solve_in_range | solve_in_range].
 
   Ltac step_let :=
-    eapply SLet; [(constructor; repeat constructor) | eval_expr | eassumption].
+    cbn; eapply SLet; [eval_secty | eval_expr | eassumption].
   
   
   Ltac step_while1 :=
@@ -746,10 +782,10 @@ Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
   Ltac step_while := step_while1 || step_while2.
 
   Ltac step_match :=
-    eapply SMatch; [cbn; solve_mapsto | cbn; reflexivity | cbn; reflexivity].
-
+    cbn; eapply SMatch; [cbn; solve_mapsto | cbn; reflexivity | cbn; reflexivity].
+  
   Ltac step_unpack_ty :=
-    eapply SUnpTy; [eval_expr | constructor; repeat constructor | eassumption].
+    cbn; eapply SUnpTy; [eval_expr | eval_secty | eassumption].
   
   Ltac step_seq :=
     match goal with

@@ -188,7 +188,8 @@ Section TypeSystem.
                   (STy (∃ₛ ("γ" ::: fr)
                          (STy (VarTy "β" ⊥ · ASecTy (VarTy "α" ⊥) @ VarTy "γ" ⊥) pc)) ⊥)) ⊥)) ⊥.
   Notation "'Tₛₜ' '(' pc ',' fr ',' k ')'" := (T_st pc fr k).
-
+  Hint Unfold T_st.
+  
   Class Substeable (A S B : Type) :=
     {
       subst : A -> S -> B -> B

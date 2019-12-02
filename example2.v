@@ -46,6 +46,13 @@ Section Example2.
 
   Coercion SPat : lang.Pat >-> Funclass.
   Coercion PVar: string >-> AtomPat.
+
+  Definition step_many := @step_many A BinOpS _ δ F eval_binop _ _ _ _ _ _ _ _.
+  Notation "cfg1 '-->[' n ']' cfg2" := (step_many cfg1 cfg2 n) (at level 80).
+  Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
+
+  Definition wt := @wt A BinOpS _ F type_binop.
+  Notation "'[' Γ ',' Π ',' ϕ ',' pc ',' fr ']' '⊢' c" := (wt Γ Π ϕ pc fr c) (at level 70, c at next level).
   
   Definition program : Cmd :=
     UNPACKTY "α" AS TYPE ⊥, "x" AS "α" ::=
@@ -59,13 +66,6 @@ Section Example2.
       ENDLET
     ENDUNPACKTY.
   Hint Unfold program.
-
-  Definition step_many := @step_many A BinOpS _ δ F eval_binop _ _ _ _ _ _ _ _.
-  Notation "cfg1 '-->[' n ']' cfg2" := (step_many cfg1 cfg2 n) (at level 80).
-  Notation "cfg1 '-->*' cfg2" := (exists n, cfg1 -->[n] cfg2) (at level 80).
-
-  Definition wt := @wt A BinOpS _ F type_binop.
-  Notation "'[' Γ ',' Π ',' ϕ ',' pc ',' fr ']' '⊢' c" := (wt Γ Π ϕ pc fr c) (at level 70, c at next level).
 
   Lemma program_is_wt:
     [∅, ∅, nil, ⊥, ⊥] ⊢ program.
